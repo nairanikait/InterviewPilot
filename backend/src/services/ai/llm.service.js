@@ -1,48 +1,50 @@
 /**
- * AI Service — wraps Google Gemini API calls.
+ * AI Service — wraps LLM API calls using standard OpenAI-compatible REST API.
  *
- * Uses the Gemini REST API directly (no SDK dependency) so only
- * the GEMINI_API_KEY env var is required.
+ * This allows seamless replacement of API providers (like OpenRouter, OpenAI, Groq).
+ * Requires LLM_API_KEY and allows overriding LLM_MODEL and LLM_BASE_URL.
  *
  * Two operations are exposed:
  *   generateQuestions(resumeText, count?)  → string[]
  *   evaluateAnswer(question, answer)       → { score, feedback }
  */
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL
-const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+const LLM_API_KEY = process.env.LLM_API_KEY;
+const LLM_MODEL = process.env.LLM_MODEL || 'google/gemini-2.5-flash';
+const LLM_BASE_URL = process.env.LLM_BASE_URL || 'https://openrouter.ai/api/v1/chat/completions';
 
 /**
  * Low-level helper — sends a prompt and returns the text response.
  * @param {string} prompt
  * @returns {Promise<string>}
  */
-const callGemini = async (prompt) => {
-  if (!GEMINI_API_KEY) {
-    throw new Error('GEMINI_API_KEY is not configured.');
+const callLLM = async (prompt) => {
+  if (!LLM_API_KEY) {
+    throw new Error('LLM_API_KEY is not configured.');
   }
 
-  const response = await fetch(GEMINI_URL, {
+  const response = await fetch(LLM_BASE_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${LLM_API_KEY}`
+    },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 2048,
-      },
+      model: LLM_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 2048,
     }),
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Gemini API error (${response.status}): ${error}`);
+    throw new Error(`LLM API error (${response.status}): ${error}`);
   }
 
   const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('Empty response from Gemini API.');
+  const text = data?.choices?.[0]?.message?.content;
+  if (!text) throw new Error('Empty response from LLM API.');
   return text.trim();
 };
 
@@ -96,7 +98,7 @@ Rules:
 - Example format: ["Question 1?", "Question 2?", ...]
 - Make questions technical and relevant to the resume content.`;
 
-  const raw = await callGemini(prompt);
+  const raw = await callLLM(prompt);
 
   // Strip possible markdown code fences
   const cleaned = raw.replace(/```json|```/g, '').trim();
@@ -139,7 +141,7 @@ Example: {"score": 7, "feedback": "Good explanation of X but missed Y. Consider 
 
 Return only the JSON object, no markdown.`;
 
-  const raw = await callGemini(prompt);
+  const raw = await callLLM(prompt);
   const cleaned = raw.replace(/```json|```/g, '').trim();
 
   let result;

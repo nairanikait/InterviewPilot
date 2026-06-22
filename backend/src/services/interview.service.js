@@ -1,6 +1,6 @@
 const Resume = require('../models/Resume');
 const InterviewSession = require('../models/InterviewSession');
-const { generateQuestions, evaluateAnswer } = require('./ai/gemini.service');
+const { generateQuestions, evaluateAnswer } = require('./ai/llm.service');
 
 /**
  * Starts a new interview session for the given user and resume.
