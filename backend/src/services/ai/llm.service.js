@@ -142,7 +142,13 @@ Example: {"score": 7, "feedback": "Good explanation of X but missed Y. Consider 
 Return only the JSON object, no markdown.`;
 
   const raw = await callLLM(prompt);
-  const cleaned = raw.replace(/```json|```/g, '').trim();
+  let cleaned = raw.replace(/```json|```/g, '').trim();
+
+  // Extract JSON object if the model included conversational text
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    cleaned = jsonMatch[0];
+  }
 
   let result;
   try {
